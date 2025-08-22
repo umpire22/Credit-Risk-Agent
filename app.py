@@ -1,15 +1,41 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
 # --- Page config ---
 st.set_page_config(
-    page_title="💳 Credit Risk Analysis Agent",
+    page_title="💳 Credit Risk Analysis Dashboard",
     page_icon="💳",
     layout="wide"
 )
 
-st.title("💳 Credit Risk Analysis Agent")
-st.markdown("Evaluate loan applicants for credit risk easily and visually.")
+# --- Custom CSS for gradient background and cards ---
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(to right, #fbc2eb, #a6c1ee);
+}
+h1, h2, h3 {
+    color: #3b3b3b;
+}
+.card {
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.metric-card {
+    padding: 20px;
+    border-radius: 10px;
+    color: white;
+    text-align: center;
+    margin-bottom: 20px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("💳 Credit Risk Analysis Dashboard")
+st.markdown("Evaluate loan applicants visually and interactively.")
 
 # --- Currency selection ---
 currency = st.radio("Select Currency", ["USD ($)", "NGN (₦)"])
@@ -24,38 +50,29 @@ loan_amount = st.number_input(f"Loan Amount Requested ({currency})", min_value=0
 
 if st.button("Assess Risk"):
     dti = (debt / income) * 100 if income > 0 else 0
-
-    # Determine risk
     if credit_score >= 700 and dti < 35:
         risk = "Low Risk"
-        color = "#d4edda"  # Green
-        text_color = "#155724"
+        color = "#28a745"  # Green
         emoji = "✅"
     elif credit_score >= 600 and dti < 50:
         risk = "Medium Risk"
-        color = "#fff3cd"  # Yellow
-        text_color = "#856404"
+        color = "#ffc107"  # Yellow
         emoji = "⚠️"
     else:
         risk = "High Risk"
-        color = "#f8d7da"  # Red
-        text_color = "#721c24"
+        color = "#dc3545"  # Red
         emoji = "❌"
 
-    # Display result in a card-style box
-    st.markdown(
-        f"""
-        <div style="background-color: {color}; padding: 20px; border-radius: 10px;">
-            <h3 style="color: {text_color};">{emoji} {risk}</h3>
-            <p><strong>Debt-to-Income Ratio:</strong> {dti:.2f}%</p>
-            <p><strong>Credit Score:</strong> {credit_score}</p>
-            <p><strong>Monthly Income:</strong> {income} {currency}</p>
-            <p><strong>Monthly Debt:</strong> {debt} {currency}</p>
-            <p><strong>Loan Amount Requested:</strong> {loan_amount} {currency}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    st.markdown(f"""
+    <div class="card" style="background-color:{color}; color:white;">
+        <h3>{emoji} {risk}</h3>
+        <p><strong>Debt-to-Income Ratio:</strong> {dti:.2f}%</p>
+        <p><strong>Credit Score:</strong> {credit_score}</p>
+        <p><strong>Monthly Income:</strong> {income} {currency}</p>
+        <p><strong>Monthly Debt:</strong> {debt} {currency}</p>
+        <p><strong>Loan Amount Requested:</strong> {loan_amount} {currency}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- Bulk Upload ---
 st.subheader("Upload Applicant Dataset (CSV)")
@@ -76,18 +93,36 @@ if uploaded_file:
 
     df["RiskLevel"] = df.apply(evaluate, axis=1)
 
-    # --- Color-code RiskLevel ---
+    # --- Display dataframe ---
     def highlight_risk(row):
-        color = ""
         if row["RiskLevel"] == "Low Risk":
-            color = 'background-color: #d4edda; color: #155724'  # Green
+            color = 'background-color: #d4edda; color: #155724'
         elif row["RiskLevel"] == "Medium Risk":
-            color = 'background-color: #fff3cd; color: #856404'  # Yellow
+            color = 'background-color: #fff3cd; color: #856404'
         else:
-            color = 'background-color: #f8d7da; color: #721c24'  # Red
-        return [color] * len(row)
+            color = 'background-color: #f8d7da; color: #721c24'
+        return [color]*len(row)
 
     st.dataframe(df.style.apply(highlight_risk, axis=1))
+
+    # --- Summary Metrics ---
+    total = len(df)
+    low = len(df[df["RiskLevel"] == "Low Risk"])
+    medium = len(df[df["RiskLevel"] == "Medium Risk"])
+    high = len(df[df["RiskLevel"] == "High Risk"])
+
+    st.subheader("📊 Risk Summary")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.markdown(f'<div class="metric-card" style="background-color:#6c757d;"><h3>Total Applicants</h3><h2>{total}</h2></div>', unsafe_allow_html=True)
+    col2.markdown(f'<div class="metric-card" style="background-color:#28a745;"><h3>Low Risk</h3><h2>{low}</h2></div>', unsafe_allow_html=True)
+    col3.markdown(f'<div class="metric-card" style="background-color:#ffc107; color:#212529;"><h3>Medium Risk</h3><h2>{medium}</h2></div>', unsafe_allow_html=True)
+    col4.markdown(f'<div class="metric-card" style="background-color:#dc3545;"><h3>High Risk</h3><h2>{high}</h2></div>', unsafe_allow_html=True)
+
+    # --- Risk Distribution Chart ---
+    st.subheader("📈 Risk Distribution")
+    fig = px.pie(df, names='RiskLevel', title='Risk Level Distribution', 
+                 color='RiskLevel', color_discrete_map={'Low Risk':'#28a745','Medium Risk':'#ffc107','High Risk':'#dc3545'})
+    st.plotly_chart(fig, use_container_width=True)
 
     # --- Download button ---
     csv = df.to_csv(index=False).encode("utf-8")
